@@ -1,4 +1,4 @@
-import { Component } from 'react';
+import { useState, useEffect } from 'react';
 import { fetchApi } from 'services/fetchApi';
 import { Notify } from 'notiflix/build/notiflix-notify-aio';
 import css from './App.module.css';
@@ -8,79 +8,75 @@ import { Button } from './Button/Button';
 import { Loader } from './Loader/Loader';
 import { Modal } from './Modal/Modal';
 
-export class App extends Component {
-  state = {
-    query: '',
-    photos: [],
-    page: 1,
-    totalHits: 0,
-    isLoading: false,
-    showModal: false,
+export const App = () => {
+  const [query, setQuery] = useState('');
+  const [photos, setPhotos] = useState([]);
+  const [page, setPage] = useState(1);
+  const [totalHits, setTotalHits] = useState(0);
+  const [isLoading, setIsLoading] = useState(false);
+  const [showModal, setShowModal] = useState(false);
+  const [id, setId] = useState(null);
+
+  let state = { query, photos, page };
+
+  const handleClick = () => {
+    setPage(prev => prev + 1);
   };
 
-  handleSubmin = event => {
+  const handleSubmin = event => {
     const query = event.target.elements.query.value.trim();
-    this.setState({ query: query, photos: [], page: 1, totalHits: 0 });
+    setQuery(query);
+    setPhotos([]);
+    setPage(1);
+    setTotalHits(0);
   };
 
-  handleClick = () => {
-    this.setState(prevState => ({ page: prevState.page + 1 }));
-  };
-
-  switchModal = event => {
+  const switchModal = event => {
     const { id } = event.target.parentNode;
-    this.setState({ showModal: !this.state.showModal, id });
+    setShowModal(!showModal);
+    setId(id);
   };
 
-  componentDidUpdate(_, prevState) {
-    const prevQuery = prevState.query;
-    const prevPage = prevState.page;
-    const { query, page } = this.state;
-
-    if (prevQuery !== query || prevPage !== page) {
-      this.setState({ isLoading: true });
-      fetchApi(query, page)
-        .then(json => {
-          if (json.data.totalHits === 0) {
-            Notify.failure(
-              'Sorry, there are no images matching your search query. Please try again.'
-            );
-            return;
-          }
-          const { totalHits, hits } = json.data;
-          const photos = hits.map(item => ({
-            id: item.id,
-            desc: item.tags,
-            smallImg: item.webformatURL,
-            bigImg: item.largeImageURL,
-          }));
-          this.setState({
-            totalHits,
-            photos: [...this.state.photos, ...photos],
-          });
-        })
-        .finally(() => {
-          this.setState({ isLoading: false });
-        });
+  useEffect(() => {
+    if (!query) {
+      return;
     }
-  }
 
-  render() {
-    return (
-      <div className={css.App}>
-        <Searchbar onSubmit={this.handleSubmin} />
-        <ImageGallery state={this.state} switchModal={this.switchModal} />
-        {this.state.isLoading && <Loader />}
-        {this.state.photos.length > 0 &&
-          this.state.photos.length < this.state.totalHits &&
-          !this.state.isLoading && <Button onClick={this.handleClick} />}
-        {this.state.showModal && (
-          <Modal
-            bigImg={this.state.photos[this.state.id].bigImg}
-            switchModal={this.switchModal}
-          />
-        )}
-      </div>
-    );
-  }
-}
+    setIsLoading(true);
+    fetchApi(query, page)
+      .then(json => {
+        if (json.data.totalHits === 0) {
+          Notify.failure(
+            'Sorry, there are no images matching your search query. Please try again.'
+          );
+          return;
+        }
+        const { totalHits, hits } = json.data;
+        const photos = hits.map(item => ({
+          id: item.id,
+          desc: item.tags,
+          smallImg: item.webformatURL,
+          bigImg: item.largeImageURL,
+        }));
+        setTotalHits(totalHits);
+        setPhotos(prev => [...prev, ...photos]);
+      })
+      .finally(() => {
+        setIsLoading(false);
+      });
+  }, [query, page]);
+
+  return (
+    <div className={css.App}>
+      <Searchbar onSubmit={handleSubmin} />
+      <ImageGallery state={state} switchModal={switchModal} />
+      {isLoading && <Loader />}
+      {photos.length > 0 && photos.length < totalHits && !isLoading && (
+        <Button onClick={handleClick} />
+      )}
+      {showModal && (
+        <Modal bigImg={photos[id].bigImg} switchModal={switchModal} />
+      )}
+    </div>
+  );
+};
